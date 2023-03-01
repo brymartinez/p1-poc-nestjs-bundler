@@ -1,0 +1,13 @@
+environment:
+  SERVICE_NAME: ${file(config/${self:provider.stage}-config.yml):deployment.stackPrefix}${self:service}
+  
+deployment:
+  deploymentBucket: 2121-dev-packages
+  deploymentPrefix: pocs
+  stackPrefix: Dev
+  endpointType: private
+  vpc:
+    subnets:
+      - subnet-044b0f8d229a47d0f
+    securityGroups:
+      - sg-09662cfaf76a051c8

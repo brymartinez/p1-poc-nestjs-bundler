@@ -1,0 +1,100 @@
+service: P1POCNestjsBundler
+
+plugins:
+  # - serverless-jetpack
+  - serverless-plugin-typescript
+  - serverless-offline
+  - serverless-iam-roles-per-function
+
+provider:
+  name: aws
+  runtime: nodejs14.x
+  profile: 2121bryan
+  environment:
+    GLOBAL_PATH: p1/v1/topup
+    APP_MODE: ${self:provider.stage}
+    MERCHANT_DB_TABLE: ${self:service}_Merchant_${self:custom.environments.${self:provider.stage}}
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'ap-southeast-1'}
+  lambdaHashingVersion: 20201221
+  endpointType: ${file(config/${self:provider.stage}-config.yml):deployment.endpointType}
+  timeout: 30
+  memorySize: 512
+  deploymentBucket: ${file(config/${self:provider.stage}-config.yml):deployment.deploymentBucket}
+  deploymentPrefix: ${file(config/${self:provider.stage}-config.yml):deployment.deploymentPrefix}
+  stackName: ${self:provider.stage}-p1-poc-nestjs-bundler
+  vpc:
+    securityGroupIds: ${file(config/${self:provider.stage}-config.yml):deployment.vpc.securityGroups}
+    subnetIds: ${file(config/${self:provider.stage}-config.yml):deployment.vpc.subnets}
+  apiGateway:
+    minimumCompressionSize: 1024 # Enable gzip compression for responses > 1 KB
+    resourcePolicy:
+      - Effect: Allow
+        Principal: '*'
+        Action: execute-api:Invoke
+        Resource:
+          - execute-api:/${self:provider.stage}/*/*
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - 'sqs:ReceiveMessage'
+      Resource:
+        - 'Fn::Join':
+            - ':'
+            - - 'arn'
+              - Ref: 'AWS::Partition'
+              - 'ssm'
+              - Ref: 'AWS::Region'
+              - Ref: 'AWS::AccountId'
+              - 'POC.fifo'
+
+functions:
+  main: # The name of the lambda function
+    # The module 'handler' is exported in the file 'src/lambda'
+    handler: src/main.handler
+    environment: ${file(config/${self:provider.stage}-config.yml):environment}
+    events:
+      - http:
+          method: any
+          path: p1/poc/bundler/{any+}
+  sqsMain: # The name of the lambda function
+    # The module 'handler' is exported in the file 'src/lambda'
+    handler: src/main.sqsHandler
+    environment: ${file(config/${self:provider.stage}-config.yml):environment}
+    events:
+      - sqs:
+          arn:
+            Fn::Join:
+              - ':'
+              -
+                - 'arn'
+                - Ref: 'AWS::Partition'
+                - 'sqs'
+                - Ref: 'AWS::Region'
+                - Ref: 'AWS::AccountId'
+                - 'POC.fifo'
+
+
+package:
+  excludeDevDependencies: true
+
+custom:
+  jetpack:
+    mode: npm # (default `yarn`)
+  serverless-offline:
+    httpPort: 8089
+    noPrependStageInUrl: true
+  alerts:
+    dashboards: true
+  deploymentSettings:
+    stages:
+      - staging
+      - production
+      - sandbox
+  environments:
+    local: Local
+    dev: Dev
+    test: Test
+    staging: Staging
+    production: Production
+    sandbox: Sandbox
